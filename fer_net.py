@@ -5,6 +5,14 @@ from keras.layers import BatchNormalization, Flatten, Dense, Dropout
 from keras.layers import Input, merge
 from keras.models import Model
 from keras import regularizers
+from keras.utils import  np_utils
+
+from ml_file_pkg.pickle_file import load_data_xy
+from ml_file_pkg.pickle_file import get_files
+
+import os
+import numpy as np
+import sys
 
 #global constants
 NB_CLASS = 7 #number of facial expression
@@ -53,14 +61,14 @@ def fer_net_model():
         raise Exception('Invalid dim ordering: ' + str(DIM_ORERING))
 
     #construct the model
-    #Convolution-1 7x7/2 24
-    x = conv2D_bn(img_input, 24, 7, 7, subsample=(2, 2), border_mode='valid')
+    #Convolution-1 7x7/2 64
+    x = conv2D_bn(img_input, 64, 7, 7, subsample=(2, 2), border_mode='same')
     #Max pool-1 3x3/2 64
-    x = MaxPooling2D(x, 64, 3, 3, strides=(2, 2), border_mode='valid', dim_ordering=DIM_ORERING)
+    x = MaxPooling2D((3, 3), strides=(2, 2), border_mode='same', dim_ordering=DIM_ORERING)(x)
     #Convolution-2 3x3/1 192
-    x = conv2D_bn(x, 192, 3, 3, border_mode='valid')
+    x = conv2D_bn(x, 192, 3, 3, border_mode='same')# valid
     #Max pool-2 3x3/2 192
-    x = MaxPooling2D(x, 192, 3, 3, strides=(2, 2), dim_ordering=DIM_ORERING)
+    x = MaxPooling2D((3, 3), strides=(2, 2), border_mode='same', dim_ordering=DIM_ORERING)(x)
 
     #Inception-3a
     #branch1x1 1x1 64
@@ -105,7 +113,7 @@ def fer_net_model():
     x = merge([branch1x1, branch3x3, branch5x5, branch_pool], mode='concat', concat_axis=CONCAT_AXIS)
 
     #max pool - 4 3x3 2
-    x = MaxPooling2D((3,3), strides=(2, 2), border_mode='valid', dim_ordering=DIM_ORERING)(x)
+    x = MaxPooling2D((3,3), strides=(2, 2), border_mode='same', dim_ordering=DIM_ORERING)(x)
 
     #Inception 4a
     #branch1x1 1x1 192
@@ -132,7 +140,7 @@ def fer_net_model():
     x = AveragePooling2D((3, 3), strides=(1, 1), border_mode='valid', dim_ordering=DIM_ORERING)(x)
 
     #flatten
-    x = Flatten(x)
+    x = Flatten()(x)
     #full connected 7 4096
     x = Dense(4096, activation='relu')(x)
     #full connected 8 1024
@@ -142,8 +150,26 @@ def fer_net_model():
     preds = Dense(NB_CLASS, activation='softmax')(x)
 
     model = Model(input=img_input, output=preds)
-    model.compile('rmsporp', 'categorical_crossentropy')
+    model.summary()
+    model.compile('adadelta', 'categorical_crossentropy', metrics=['accuracy'])#rmsprop
     return model
+
+if __name__ == '__main__':
+    
+    train_data_path = 'publicTest_vec_img'
+
+    train_data_path_vec = get_files(train_data_path)
+    train_img_vec, train_label_vec = load_data_xy(train_data_path_vec)
+    train_img_vec = train_img_vec / 255
+    nb_samples = len(train_label_vec)
+    train_img_vec = train_img_vec.reshape(nb_samples, 3, 48, 48)
+    train_label_vec = np_utils.to_categorical(train_label_vec, NB_CLASS)
+
+    model = fer_net_model()
+    model.fit(train_img_vec, train_label_vec, batch_size=32, validation_split=0.2, verbose=1, nb_epoch=1)
+    model.save_weights('fer_net.hd5', True)
+    print len(train_img_vec)
+
 
 
 
