@@ -6,6 +6,7 @@ from keras.layers import Input, merge
 from keras.models import Model
 from keras import regularizers
 from keras.utils import  np_utils
+from keras.callbacks import ModelCheckpoint
 
 from ml_file_pkg.pickle_file import load_data_xy
 from ml_file_pkg.pickle_file import get_files
@@ -164,10 +165,10 @@ if __name__ == '__main__':
     nb_samples = len(train_label_vec)
     train_img_vec = train_img_vec.reshape(nb_samples, 3, 48, 48)
     train_label_vec = np_utils.to_categorical(train_label_vec, NB_CLASS)
-
+    checkpointer = ModelCheckpoint(filepath='weights-{epoch:02d}-{val_loss:.2f}.hdf5', verbose=1, save_best_only=True)
     model = fer_net_model()
-    model.fit(train_img_vec, train_label_vec, batch_size=32, validation_split=0.2, verbose=1, nb_epoch=1)
-    model.save_weights('fer_net.hd5', True)
+    model.fit(train_img_vec, train_label_vec, batch_size=32, validation_split=0.2, verbose=1, nb_epoch=1, callbacks=[checkpointer])
+    model.save_weights('fer_net_last.hdf5', True)
     print len(train_img_vec)
 
 
